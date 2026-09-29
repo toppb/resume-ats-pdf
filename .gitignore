@@ -1,0 +1,16 @@
+# verifier output
+preview.png
+preview.pdf
+_verify_render.html
+_render.html
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# node (only used to fetch fonts)
+node_modules/
+
+# os
+.DS_Store

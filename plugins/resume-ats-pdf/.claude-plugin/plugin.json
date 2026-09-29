@@ -1,0 +1,8 @@
+{
+  "name": "resume-ats-pdf",
+  "description": "Turn a designed resume into an HTML file that prints to a clean, machine-readable one-page PDF, and verify it before sending.",
+  "version": "1.0.0",
+  "author": { "name": "Topp Brocales" },
+  "license": "MIT",
+  "keywords": ["resume", "ats", "pdf", "figma", "design", "job-search"]
+}
