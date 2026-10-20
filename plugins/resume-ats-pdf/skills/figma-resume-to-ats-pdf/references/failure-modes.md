@@ -38,6 +38,13 @@ it just changes which pairs cross the threshold.
 
 Side benefit: killing ligatures stops `fi` splitting "Certification".
 
+**Letter-spacing breaks HTML too.** Tracked-out text, a common designer move on contact
+lines and small-caps headings, fragments in some extractors even from Chrome:
+`y o u @ e x a m p l e . c o m`. In testing, 1pt of tracking on 10pt type (0.1em) broke
+the email in pdfminer while pypdf still read it cleanly. Keep `letter-spacing` under
+about 0.05em on anything a machine needs to read, especially contact details. The
+small negative values in §4 are safe.
+
 ---
 
 ## 2. Column interleaving and grouping
@@ -72,6 +79,19 @@ em/en spaces (`&#8195;&#8194;`) between year and label.
 
 This matters more than it looks: the date/title boundary is exactly the field a résumé
 parser most wants to split.
+
+**Side-by-side columns fuse the same way.** When two blocks sit next to each other, the
+last word of one can run straight into the first word of the next: `Programme,
+InstitutionSkills`. There's no space between them in the text stream, because the gap is
+layout. **Fix:** end every block in a side-by-side column with a non-breaking space,
+which survives where a normal trailing space would be collapsed:
+
+```css
+.block > p::after, .dated-item::after { content: "\00a0"; }
+```
+
+If you need secondary sections to extract in perfect order too, stack them in one column
+instead (see §8 on why chasing order in side-by-side columns is a dead end).
 
 ---
 

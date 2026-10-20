@@ -7,7 +7,7 @@ renders it headless in Chromium, prints a PDF, extracts the text back out, and
 compares that against what the HTML actually says. So it works on any resume,
 not one particular layout.
 
-    pip install playwright pypdf beautifulsoup4 --break-system-packages
+    pip install playwright pypdf pdfminer.six --break-system-packages
     python3 -m playwright install chromium
 
     python3 verify_resume.py resume.html
@@ -20,6 +20,9 @@ Checks:
   4. Word integrity        — every word in the HTML survives PDF extraction intact.
                              Catches character-level fragmentation ("rede sign"),
                              which is the failure that silently corrupts emails.
+                             Checked with two extractors (pypdf and pdfminer.six),
+                             because ATS parsers use different engines and a PDF
+                             that one reads cleanly can still break in another.
   5. Contact details       — email / phone / URL survive as unbroken strings
   6. Reading order         — headings and role titles extract in DOM order
   7. Run-together text     — adjacent fields with no space between them
@@ -110,8 +113,20 @@ def main() -> int:
                 const f = getComputedStyle(e).fontFamily.split(',')[0].replace(/['"]/g,'').trim();
                 if (f) fams.add(f);
             });
+            // document.fonts.check() returns true for a family that has no webfont at
+            // all (it falls back silently), so it can't catch a CDN font that never
+            // loaded. Instead: a family is expected to be a webfont if the page asks
+            // for one (a font link or an @font-face), and then it must have actually loaded.
+            const html = document.documentElement.outerHTML;
+            const links = [...document.querySelectorAll('link[href]')].map(l => decodeURIComponent(l.href));
             const out = {};
-            fams.forEach(f => { out[f] = document.fonts.check(`16px "${f}"`); });
+            fams.forEach(f => {
+                const faces = [...document.fonts].filter(ff => ff.family.replace(/['"]/g,'') === f);
+                const wanted = faces.length > 0
+                    || links.some(h => /fonts\.(googleapis|bunny)|typekit|use\.fontawesome/.test(h)
+                                       && h.replace(/\+/g,' ').includes(f));
+                out[f] = !wanted || faces.some(ff => ff.status === 'loaded');
+            });
             return out;
         }""")
         generic = {"sans-serif", "serif", "monospace", "system-ui", "-apple-system"}
@@ -181,12 +196,21 @@ def main() -> int:
     # 2/3. page fit
     try:
         from pypdf import PdfReader
-        reader = PdfReader(a.pdf)
-        n_pages = len(reader.pages)
-        pdf_text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        from pdfminer.high_level import extract_text as pdfminer_text
     except ImportError:
-        print("pypdf not installed — install it for the extraction checks")
+        print("pypdf and pdfminer.six are required: "
+              "pip install pypdf pdfminer.six --break-system-packages")
         return 1
+    import logging
+    logging.getLogger("pdfminer").setLevel(logging.ERROR)
+    reader = PdfReader(a.pdf)
+    n_pages = len(reader.pages)
+    # Each extractor reconstructs words and order differently. A check passes only
+    # if it passes for all of them.
+    extracts = {
+        "pypdf": "\n".join(p.extract_text() or "" for p in reader.pages),
+        "pdfminer": pdfminer_text(a.pdf),
+    }
 
     usable = 792 - 2 * (float(a.margin.rstrip("in")) * 72 if a.margin.endswith("in") else 24)
     headroom = usable - dom["bottom"]
@@ -197,59 +221,77 @@ def main() -> int:
     if 0 <= headroom < 6:
         warns.append("under 6pt of headroom — one extra line wrap will add a page")
 
-    # 4. word integrity — the important one
-    src_words = words(dom["text"])
-    pdf_norm = norm(pdf_text)
-    # a word hyphenated across a line break extracts as "Cross- functional"
-    pdf_dehyph = re.sub(r"-\s+", "-", pdf_norm)
-    broken = []
-    for w in dict.fromkeys(src_words):
-        if w not in pdf_norm and w not in pdf_dehyph:
-            # is it there with spaces inserted between characters?
-            loose = r"\s*".join(re.escape(c) for c in w)
-            if re.search(loose, pdf_norm, re.I):
-                broken.append(w)
-            else:
-                broken.append(w + " (absent)")
-    print(f"word integrity      : {'ok' if not broken else str(len(broken)) + ' broken'}")
-    for w in broken[:12]:
-        fails.append(f"word does not survive extraction: {w}")
-    if len(broken) > 12:
-        fails.append(f"...and {len(broken)-12} more")
-
-    # 5. contact details
+    # 4–7 run against every extractor; a problem in any one of them is a failure
+    src_words = list(dict.fromkeys(words(dom["text"])))
     contacts = (re.findall(r"[\w.+-]+@[\w-]+\.[\w.]+", dom["text"])
                 + re.findall(r"(?:\+?\d[\d\s().-]{7,}\d)", dom["text"])
                 + re.findall(r"\b(?:https?://)?[\w-]+\.(?:com|ca|io|dev|design|co)\b", dom["text"]))
-    bad_contacts = [c.strip() for c in dict.fromkeys(contacts) if norm(c) not in pdf_norm]
-    print(f"contact details     : {'ok' if not bad_contacts else 'BROKEN ' + str(bad_contacts)}")
-    for c in bad_contacts:
-        fails.append(f"contact detail corrupted in PDF: {c!r}")
+    contacts = [c.strip() for c in dict.fromkeys(contacts)]
+    dom_norm = norm(dom["text"])
 
-    # 6. reading order
-    pos, missing = [], []
-    for t in dom["anchors"]:
-        i = pdf_norm.find(norm(t)[:40])
-        (missing if i < 0 else pos).append(t if i < 0 else i)
-    if missing:
-        for t in missing[:6]:
-            fails.append(f"heading/title missing from extracted text: {t!r}")
-    elif pos != sorted(pos):
-        out_of_order = [dom["anchors"][i] for i in range(1, len(pos)) if pos[i] < pos[i-1]]
-        fails.append(f"content extracts out of order around: {out_of_order[:3]}")
-    print(f"reading order       : {'ok' if not missing and pos == sorted(pos) else 'PROBLEM'}")
+    res = {k: {} for k in ("words", "contacts", "order", "runs")}
+    for name, pdf_text in extracts.items():
+        pdf_norm = norm(pdf_text)
+        # a word hyphenated across a line break extracts as "Cross- functional"
+        pdf_dehyph = re.sub(r"-\s+", "-", pdf_norm)
 
-    # 7. run-together text
-    # A year immediately followed by a capital is never legitimate — flag it even if
-    # the HTML has the same defect (that means the spacer is missing in the source).
-    hard = re.findall(r"\b\d{4}[A-Z][a-z]{2,}", pdf_text)
-    # camelCase runs are only suspicious if the HTML doesn't contain them (UserTesting is fine)
-    soft = [r for r in re.findall(r"\b[a-z]{3,}[A-Z][a-z]{3,}\b", pdf_text)
-            if r not in dom["text"]]
-    runs = list(dict.fromkeys(hard + soft))
-    print(f"run-together text   : {'ok' if not runs else runs[:5]}")
-    for r in runs[:5]:
-        fails.append(f"fields run together with no space: {r!r}")
+        # 4. word integrity — the important one
+        broken = []
+        for w in src_words:
+            if w not in pdf_norm and w not in pdf_dehyph:
+                # is it there with spaces inserted between characters?
+                loose = r"\s*".join(re.escape(c) for c in w)
+                broken.append(w if re.search(loose, pdf_norm, re.I) else w + " (absent)")
+        res["words"][name] = broken
+
+        # 5. contact details
+        res["contacts"][name] = [c for c in contacts if norm(c) not in pdf_norm]
+
+        # 6. reading order
+        pos, missing = [], []
+        for t_ in dom["anchors"]:
+            i = pdf_norm.find(norm(t_)[:40])
+            (missing if i < 0 else pos).append(t_ if i < 0 else i)
+        out_of_order = [] if missing else [dom["anchors"][i] for i in range(1, len(pos)) if pos[i] < pos[i-1]]
+        res["order"][name] = (missing, out_of_order)
+
+        # 7. run-together text
+        # A year immediately followed by a capital is never legitimate — flag it even if
+        # the HTML has the same defect (that means the spacer is missing in the source).
+        hard = re.findall(r"\b\d{4}[A-Z][a-z]{2,}", pdf_norm)
+        # Two words fused at a case change ("InstitutionSkills", "designLead"). Only
+        # suspicious if the HTML doesn't contain the same string (UserTesting is fine).
+        soft = [r for r in re.findall(r"[A-Za-z]*[a-z]{3,}[A-Z][a-z]{2,}[A-Za-z]*", pdf_norm)
+                if r not in dom_norm]
+        res["runs"][name] = list(dict.fromkeys(hard + soft))
+
+    def report(label, key, fmt_ok, fmt_bad, fail_msg, limit=12):
+        bad = {n: v for n, v in res[key].items() if v}
+        print(f"{label:<20}: {fmt_ok if not bad else fmt_bad(bad)}")
+        for n, v in bad.items():
+            for item in v[:limit]:
+                fails.append(f"[{n}] {fail_msg(item)}")
+            if len(v) > limit:
+                fails.append(f"[{n}] ...and {len(v)-limit} more")
+
+    report("word integrity", "words", "ok",
+           lambda b: ", ".join(f"{n}: {len(v)} broken" for n, v in b.items()),
+           lambda w: f"word does not survive extraction: {w}")
+    report("contact details", "contacts", "ok",
+           lambda b: "BROKEN " + "; ".join(f"{n}: {v}" for n, v in b.items()),
+           lambda c: f"contact detail corrupted in PDF: {c!r}")
+
+    order_bad = {n: v for n, v in res["order"].items() if v[0] or v[1]}
+    print(f"{'reading order':<20}: {'ok' if not order_bad else 'PROBLEM in ' + ', '.join(order_bad)}")
+    for n, (missing, ooo) in order_bad.items():
+        for t_ in missing[:6]:
+            fails.append(f"[{n}] heading/title missing from extracted text: {t_!r}")
+        if ooo:
+            fails.append(f"[{n}] content extracts out of order around: {ooo[:3]}")
+
+    report("run-together text", "runs", "ok",
+           lambda b: "; ".join(f"{n}: {v[:5]}" for n, v in b.items()),
+           lambda r: f"fields run together with no space: {r!r}", limit=5)
 
     # 8/9. layout niggles
     print(f"orphan separators   : {'none' if not dom['seps'] else dom['seps'][:4]}")

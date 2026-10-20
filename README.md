@@ -39,21 +39,23 @@ properly. The skill triggers on its own.
 To run the verifier directly:
 
 ```bash
-pip install playwright pypdf --break-system-packages
+pip install playwright pypdf pdfminer.six --break-system-packages
 python3 -m playwright install chromium
 
 python3 scripts/verify_resume.py resume.html --fonts ./fonts --expect 2,2,2,1,2,1
 ```
 
-It renders the HTML headless, prints a PDF, extracts the text back out, and compares it
-against what the HTML actually says. Checks:
+It renders the HTML headless, prints a PDF, extracts the text back out with two different
+extractors (pypdf and pdfminer.six), and compares both against what the HTML actually
+says. ATS parsers use different engines, so a check only passes if it passes in both.
+Checks:
 
 | Check | Catches |
 |---|---|
 | Word integrity | Character-level fragmentation (`rede sign`) |
 | Contact details | A corrupted email or phone number |
 | Reading order | Sections extracting out of sequence |
-| Run-together fields | `2022Design Mentor` — a missing space in the text stream |
+| Run-together fields | `2022Design Mentor` or `InstitutionSkills` — a missing space in the text stream |
 | Orphan separators | A wrapped line starting with `·` |
 | Page count + headroom | Silent overflow to a second page |
 | Line counts | Blocks that wrap differently than your design file |
@@ -62,7 +64,8 @@ against what the HTML actually says. Checks:
 Nothing is hardcoded to one resume — expectations are derived from the HTML itself.
 
 `--fonts` points at a directory of font files named `Family-weight.woff2` (e.g.
-`Inter-400.woff2`). Without it, webfonts from a CDN can't be checked reliably.
+`Inter-400.woff2`). Without it, the verifier relies on the CDN, and fails the font check
+if the font can't load, rather than measuring a fallback.
 
 ## Contents
 
@@ -88,4 +91,6 @@ PDF, whatever tooling you use.
 
 ## License
 
-MIT
+[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — free to use, share, and adapt for non-commercial purposes with credit. Reselling or relisting it is not permitted. See [LICENSE](LICENSE).
+
+Versions published before October 20, 2026 were released under the MIT License.

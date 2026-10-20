@@ -63,14 +63,16 @@ reader, which can truncate the employment history partway through. Secondary sec
 ### 3. Verify
 
 ```bash
-pip install playwright pypdf --break-system-packages
+pip install playwright pypdf pdfminer.six --break-system-packages
 python3 -m playwright install chromium
 
 python3 scripts/verify_resume.py resume.html --fonts ./fonts --expect 2,2,2,1,2,1
 ```
 
-It renders headless, prints a PDF, extracts the text back, and compares it against what
-the HTML actually says. Checks: fonts loaded, page count, headroom, **every word survives
+It renders headless, prints a PDF, extracts the text back with two different extractors
+(pypdf and pdfminer.six), and compares both against what the HTML actually says. ATS
+parsers use different engines, and a PDF one reads cleanly can still break in another,
+so a check passes only if it passes in both. Checks: fonts loaded, page count, headroom, **every word survives
 extraction intact**, contact details unbroken, reading order preserved, no run-together
 fields, no orphaned separators, no wrapped date cells, and line counts against the design.
 
@@ -78,8 +80,9 @@ Nothing is hardcoded to one person's resume — expectations are derived from th
 
 Two notes:
 - `--fonts` should point at a directory of `.woff2`/`.ttf` files named
-  `Family-weight.woff2` (e.g. `Inter-400.woff2`). Without it, webfonts loaded from a CDN
-  can't be checked reliably and the font check will report a false pass.
+  `Family-weight.woff2` (e.g. `Inter-400.woff2`). Without it, the verifier relies on the
+  CDN, and if the font can't load (offline, blocked) the font check fails rather than
+  measuring a fallback font.
 - It writes `preview.png`. **Look at it.** Measurements miss visual problems; this is how
   you catch a date wrapping or a heading colliding.
 

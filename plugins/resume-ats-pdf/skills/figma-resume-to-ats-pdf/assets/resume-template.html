@@ -52,7 +52,9 @@
 
   .display { font-family: 'Inter', sans-serif; font-weight: 600; line-height: 1.2; }
 
-  /* ---------- Header ---------- */
+  /* ---------- Header ----------
+     Keep letter-spacing on the contact line at 0. Tracked-out text (0.1em and up)
+     fragments in some PDF extractors: "y o u @ e x a m p l e . c o m". */
   .masthead { display: flex; justify-content: space-between;
               align-items: baseline; margin-bottom: 20pt; }
   .name     { font-size: 16pt; }
@@ -92,6 +94,12 @@
   .lower-col { width: 270pt; flex: none; }
   .block     { margin-bottom: 16pt; }
   .block:last-child { margin-bottom: 0; }
+
+  /* LOAD-BEARING — ends every block in a side-by-side column with a real space.
+     Without it, the last word of one column runs into the first word of the next
+     in the extracted text ("InstitutionSkills"). A normal trailing space would be
+     collapsed, so this uses a non-breaking one. */
+  .block > p::after, .dated-item::after { content: "\00a0"; }
 
   /* Dated rows are ONE inline flow, not a two-column flex.
      A fixed-width cell beside text reads as its own column, and some PDF
