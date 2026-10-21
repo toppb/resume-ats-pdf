@@ -16,11 +16,19 @@
      Work in pt. 1pt = 1/72in, so a Letter page is 612×792pt and a design
      drawn at 612×792px in Figma maps 1:1 onto pt here.
      Usable height = 792 - (2 × margin).
+     This template is a STARTING POINT: restyle colors, type and spacing freely.
+     Keep the rules marked LOAD-BEARING.
      =================================================================== */
   @page { size: letter; margin: 24pt; }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { background: #f0f0f0; }              /* screen only; hidden in print */
+
+  /* LOAD-BEARING — keep ALL TEXT BLACK. Color goes on bars, rules and borders only.
+     Colored text made pypdf break the words that follow it into single letters
+     ("O n e  l i n e") in testing; black text with colored rules extracts cleanly.
+     Make hierarchy with size and weight, not text color. */
+  :root { --accent: #1f4e79; --rule: #d3d9df; }
 
   body {
     font-family: 'Inter', -apple-system, Helvetica, Arial, sans-serif;
@@ -55,64 +63,57 @@
   /* ---------- Header ----------
      Keep letter-spacing on the contact line at 0. Tracked-out text (0.1em and up)
      fragments in some PDF extractors: "y o u @ e x a m p l e . c o m". */
-  .masthead { display: flex; justify-content: space-between;
-              align-items: baseline; margin-bottom: 20pt; }
-  .name     { font-size: 16pt; }
-  .headline { font-size: 16pt; width: 564pt; margin-bottom: 20pt;
-              /* If the tagline breaks to 3 lines, tighten here in 0.1pt steps
-                 before reducing the font size. Browsers set type slightly wider
-                 than Figma does. */
-              letter-spacing: 0; }
+  .masthead { border-top: 4pt solid var(--accent); padding-top: 14pt; margin-bottom: 14pt; }
+  .name     { font-size: 28pt; line-height: 1.1; margin-bottom: 6pt; }
+  .contact  { font-size: 9pt; letter-spacing: 0; }
 
-  h2 { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 12pt;
-       line-height: 1.2; margin-bottom: 16pt; }
+  /* If the tagline breaks to 3 lines, tighten letter-spacing here in 0.1pt steps
+     before reducing the font size. Browsers set type slightly wider than Figma. */
+  .headline { font-size: 11.5pt; line-height: 1.45; width: 564pt; margin-bottom: 20pt;
+              padding-left: 10pt; border-left: 2pt solid var(--accent); }
+
+  h2 { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 11pt;
+       line-height: 1.2;
+       padding-bottom: 4pt; margin-bottom: 12pt; border-bottom: 0.75pt solid var(--rule); }
 
   /* ---------- Experience: ALWAYS full width, never beside another column ----
      Anything sitting next to your work history risks being interleaved with it
      by a PDF reader, which can truncate the history mid-way. Keep this single
-     column and put secondary sections below it.
+     column and put every other section below it.
      ------------------------------------------------------------------------ */
-  .experience { width: 564pt; margin-bottom: 16pt; }
-  .roles { display: flex; flex-direction: column; gap: 16pt; }
-  .role  { display: flex; flex-direction: column; gap: 4pt; }
+  .experience { width: 564pt; margin-bottom: 20pt; }
+  .roles { display: flex; flex-direction: column; gap: 13pt; }
+  .role  { display: flex; flex-direction: column; gap: 3pt; }
 
-  .role-head { display: flex; gap: 16pt; align-items: flex-start;
-               font-family: 'Inter', sans-serif; font-weight: 600;
-               font-size: 10pt; line-height: 1.2; }
+  .role-head  { display: flex; justify-content: space-between; align-items: baseline;
+                gap: 16pt; font-size: 10pt; line-height: 1.2; }
+  .role-title { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 10.5pt; }
+  /* nowrap: the longest date string must fit on one line */
+  .role-dates { font-size: 9pt; white-space: nowrap; flex: none; }
 
-  /* nowrap + generous width: the longest date string must fit on one line */
-  .role-dates { width: 112pt; flex: none; white-space: nowrap; }
-  .role-title { flex: 1; }
-
-  .role-body  { line-height: 1.5; text-wrap: pretty;
+  .role-body  { line-height: 1.5; text-wrap: pretty; width: 520pt;
                 /* Tighten slightly to buy tolerance: another renderer may set
                    type marginally wider and flip a 2-line block to 3. */
                 letter-spacing: 0; }
 
-  /* ---------- Secondary sections, below the experience ---------- */
-  .lower     { display: flex; gap: 24pt; align-items: flex-start; width: 564pt; }
-  .lower-col { width: 270pt; flex: none; }
-  .block     { margin-bottom: 16pt; }
+  /* ---------- Everything else: stacked, full width, one column ----------
+     A single column is the most robust shape for every parser. If you move
+     sections side by side, see references/failure-modes.md §2 first. */
+  .block { margin-bottom: 16pt; width: 564pt; }
   .block:last-child { margin-bottom: 0; }
 
-  /* LOAD-BEARING — ends every block in a side-by-side column with a real space.
-     Without it, the last word of one column runs into the first word of the next
-     in the extracted text ("InstitutionSkills"). A normal trailing space would be
-     collapsed, so this uses a non-breaking one. */
+  /* LOAD-BEARING if you ever put blocks side by side; harmless otherwise.
+     Ends every block with a real space so the last word of one column cannot run
+     into the first word of the next ("InstitutionSkills"). A normal trailing
+     space would be collapsed, so this uses a non-breaking one. */
   .block > p::after, .dated-item::after { content: "\00a0"; }
 
-  /* Dated rows are ONE inline flow, not a two-column flex.
-     A fixed-width cell beside text reads as its own column, and some PDF
-     readers then group every date together, away from its label. */
-  .dated-list { display: flex; flex-direction: column; gap: 12pt; }
+  /* One line per entry, year at the end. Deliberately NOT a fixed-width year column:
+     a year in its own cell beside text can be grouped away from its label by some
+     readers, and an inline-block year can vanish from extraction entirely. */
+  .dated-list { display: flex; flex-direction: column; gap: 5pt; }
   .dated-item { display: block; line-height: 1.5; }
-  .dated-item .year { font-family: 'Inter', sans-serif; font-weight: 600;
-                      white-space: nowrap; }
-
-  /* Hanging indent so a wrapped label lines up under the first line.
-     Tune the value to where the first line's text actually starts —
-     verify_resume.py reports this. */
-  .list-wide .dated-item { padding-left: 72pt; text-indent: -72pt; }
+  .dated-item .year { font-weight: 600; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -120,22 +121,22 @@
   <header class="masthead">
     <div class="display name">Your Name</div>
     <!-- Include your city. Recruiters filter on it constantly. -->
-    <div>yoursite.com &middot; you@example.com &middot; 555 123 4567 &middot; City, Region</div>
+    <div class="contact">yoursite.com &middot; you@example.com &middot; 555 123 4567 &middot; City, Region</div>
   </header>
 
-  <p class="display headline">One line on what you do and who you do it for</p>
+  <p class="headline">One line on what you do and who you do it for</p>
 
   <main class="experience">
-    <h2>Work Experience</h2>
+    <h2>Experience</h2>
     <div class="roles">
 
-      <!-- Date and title sit adjacent on one line: the most parseable shape
-           there is. The &nbsp; is LOAD-BEARING — flex strips whitespace between
-           items, so without it the text extracts as "Mar 2024-PresentSenior..." -->
+      <!-- Title first, dates last, in one flex row. The &nbsp; after the title is
+           LOAD-BEARING — flex strips whitespace between items, so without it the
+           text extracts as "Job Title, CompanyMar 2024—Present". -->
       <section class="role">
         <div class="role-head">
-          <span class="role-dates">Mon YYYY&mdash;Present&nbsp;</span>
-          <span class="role-title">Job Title, Company</span>
+          <span class="role-title">Job Title, Company&nbsp;</span>
+          <span class="role-dates">Mon YYYY&mdash;Present</span>
         </div>
         <p class="role-body">What changed because you were there. Lead with the
         outcome, not the assignment.</p>
@@ -143,8 +144,8 @@
 
       <section class="role">
         <div class="role-head">
-          <span class="role-dates">Mon YYYY&mdash;Mon YYYY&nbsp;</span>
-          <span class="role-title">Job Title, Company</span>
+          <span class="role-title">Job Title, Company&nbsp;</span>
+          <span class="role-dates">Mon YYYY&mdash;Mon YYYY</span>
         </div>
         <p class="role-body">Second role.</p>
       </section>
@@ -152,28 +153,23 @@
     </div>
   </main>
 
-  <div class="lower">
-    <div class="lower-col">
-      <div class="block">
-        <h2>Education</h2>
-        <div class="dated-list list-wide">
-          <!-- The em+en spaces between year and label are the visual gap AND the
-               word separator in the extracted text. Don't replace them with CSS. -->
-          <div class="dated-item"><span class="year">YYYY&mdash;YYYY</span><span class="label">&#8195;&#8194;Programme, Institution</span></div>
-        </div>
-      </div>
-    </div>
+  <div class="block">
+    <h2>Skills</h2>
+    <!-- &nbsp; before each separator keeps a dot from starting a wrapped line -->
+    <p>Skill One&nbsp;&middot; Skill Two&nbsp;&middot; Skill Three</p>
+  </div>
 
-    <div class="lower-col">
-      <div class="block">
-        <h2>Skills</h2>
-        <!-- &nbsp; before each separator keeps a dot from starting a wrapped line -->
-        <p>Skill One&nbsp;&middot; Skill Two&nbsp;&middot; Skill Three</p>
-      </div>
-      <div class="block">
-        <h2>Tools</h2>
-        <p>Tool One&nbsp;&middot; Tool Two&nbsp;&middot; Tool Three</p>
-      </div>
+  <div class="block">
+    <h2>Tools</h2>
+    <p>Tool One&nbsp;&middot; Tool Two&nbsp;&middot; Tool Three</p>
+  </div>
+
+  <div class="block">
+    <h2>Education</h2>
+    <div class="dated-list">
+      <!-- Plain text, then the year. The comma and space are the word separator
+           in the extracted text. -->
+      <div class="dated-item"><span class="label">Programme, Institution,</span> <span class="year">YYYY&mdash;YYYY</span></div>
     </div>
   </div>
 

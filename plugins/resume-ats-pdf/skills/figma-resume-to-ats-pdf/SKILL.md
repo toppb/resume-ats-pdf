@@ -55,6 +55,10 @@ like sloppiness and are actually fixes.
 
 Work in `pt`. A design drawn at 612×792px maps 1:1 onto pt on a Letter page.
 
+Keep text black and put color on rules and bars only; colored text can break extraction
+(see `references/failure-modes.md`, §8). The template is a starting point, so restyle it
+to match the design you are rebuilding.
+
 **The one structural rule that matters most: work experience gets its own full-width
 column, with nothing beside it.** Anything adjacent can be interleaved into it by a PDF
 reader, which can truncate the employment history partway through. Secondary sections

@@ -163,6 +163,13 @@ stored in the file at all; each reader reconstructs it from coordinates. No HTML
 structure changes this. The only real fix is a fully single-column layout, which usually
 doesn't fit. Leave it: it affects sections no parser maps to a structured field.
 
+**Colored text.** In testing with Inter, setting text to a non-black color (an accent
+name, grey dates) made `pypdf` extract the words that followed as single letters
+(`O n e  l i n e`), while `pdftotext` and `pdfminer` read the same file fine. Colored
+borders, bars and rules were unaffected. Keep text `#000` and put color on rules and
+bars; build hierarchy from size and weight. Observed with one font and one extractor, so
+treat it as a rule of thumb: if you do color text, the verifier will tell you.
+
 **Trusting one extractor.** `pypdf` read a lower section correctly while the user's
 reader grouped it — same file, different heuristics. If someone reports a problem your
 script says isn't there, believe them and check with a second tool.
