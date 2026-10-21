@@ -2,6 +2,8 @@
 
 A Claude skill that turns a designed resume into an HTML file that prints to a clean, machine-readable one-page PDF, and verifies it before you send it.
 
+**Want a one-click install?** [Get it on Agensi](https://www.agensi.io/skills/ats-resume-checker-figma-to-ats-friendly-pdf).
+
 ## What it does
 
 **The problem.** Design tools write PDFs by placing glyphs at coordinates. Text
