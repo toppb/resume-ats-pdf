@@ -151,6 +151,11 @@ def main() -> int:
             // heading + strong-ish text in DOM order, for the reading-order check
             const anchors = [...document.querySelectorAll('h1,h2,h3,.role-title,[data-anchor]')]
                 .map(e => e.textContent.trim()).filter(t => t.length > 3);
+            // anchors inside the work history: order there is a hard failure. Elsewhere
+            // (secondary columns) regrouping is cosmetic, so it's only a warning.
+            const primary = [...document.querySelectorAll(
+                    'main h1,main h2,main h3,.experience h2,.role-title,[data-anchor]')]
+                .map(e => e.textContent.trim()).filter(t => t.length > 3);
 
             // repeated body blocks -> line counts
             const lc = e => Math.round(e.getBoundingClientRect().height
@@ -188,7 +193,7 @@ def main() -> int:
                 if (e.getBoundingClientRect().height > lh * 1.6) wrapped.push(txt);
             });
 
-            return { bottom: pt(bottom), anchors, bodies, seps, wrapped,
+            return { bottom: pt(bottom), anchors, primary, bodies, seps, wrapped,
                      text: document.body.innerText };
         }""", a.body_selector)
         b.close()
@@ -282,12 +287,20 @@ def main() -> int:
            lambda c: f"contact detail corrupted in PDF: {c!r}")
 
     order_bad = {n: v for n, v in res["order"].items() if v[0] or v[1]}
-    print(f"{'reading order':<20}: {'ok' if not order_bad else 'PROBLEM in ' + ', '.join(order_bad)}")
+    hard_order = {n: v for n, v in order_bad.items()
+                  if v[0] or any(x in dom["primary"] for x in v[1])}
+    label = ("ok" if not order_bad else
+             "PROBLEM in " + ", ".join(hard_order) if hard_order else
+             "ok in work history; secondary sections regroup in " + ", ".join(order_bad))
+    print(f"{'reading order':<20}: {label}")
     for n, (missing, ooo) in order_bad.items():
         for t_ in missing[:6]:
             fails.append(f"[{n}] heading/title missing from extracted text: {t_!r}")
-        if ooo:
+        if ooo and n in hard_order:
             fails.append(f"[{n}] content extracts out of order around: {ooo[:3]}")
+        elif ooo:
+            warns.append(f"[{n}] secondary sections extract out of order around {ooo[:3]} "
+                         f"(cosmetic; stack them in one column if it matters)")
 
     report("run-together text", "runs", "ok",
            lambda b: "; ".join(f"{n}: {v[:5]}" for n, v in b.items()),
